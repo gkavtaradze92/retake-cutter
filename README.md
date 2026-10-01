@@ -1,10 +1,28 @@
 # Retake Cutter
 
-Upload a shadowing take and paste the script you read from. It transcribes
-what you actually said (using Whisper, running entirely in your browser),
-matches it against the script, and cuts out retakes and overlong pauses —
-automatically. Nothing is uploaded anywhere; the video and script never
-leave the browser tab.
+Upload a shadowing take. Paste the script you read from for the most
+accurate cut — or leave it blank and the tool will auto-detect retakes by
+listening for repeated phrases instead. It transcribes what you actually
+said (using Whisper, running entirely in your browser) and cuts out
+retakes and overlong pauses automatically. Nothing is uploaded anywhere;
+the video and script never leave the browser tab.
+
+## Two modes
+
+**With a script (recommended)** — matches the transcript against the
+script word-for-word (`js/align.js` + `js/planCuts.js`). Knows the
+"correct answer", so it reliably tells a flub from the real line.
+
+**Without a script** — `js/autoDetect.js` groups your speech into
+utterances (split on pauses) and looks for consecutive utterances that
+closely repeat each other; the later one is assumed to be the corrected
+retake and the earlier one gets cut. This has real, inherent limitations
+since there's no ground truth to check against:
+- A legitimately repeated phrase ("really, really good") can get wrongly
+  cut — it looks identical to a flub+retake.
+- A retake that rephrases instead of repeating verbatim won't be caught
+  at all, and is left in untouched.
+- Always review the output in auto-detect mode before trusting it blind.
 
 ## How it works
 
@@ -14,15 +32,18 @@ leave the browser tab.
    via [transformers.js](https://github.com/huggingface/transformers.js),
    entirely in-browser, to get word-level timestamps for what you actually
    said.
-3. **Align** (`js/align.js`) — matches the script's words against the
-   transcript using an LCS-based algorithm, snapping to the *last*
-   occurrence of any repeated word so a corrected retake wins over the
-   flubbed first attempt. See the comments at the top of the file for the
-   exact logic and its known limits.
-4. **Plan cuts** (`js/planCuts.js`) — turns the alignment into a list of
-   time ranges to keep: junk between two correct anchors gets cut
-   entirely, and overlong pauses (default: anything over 1.2s) get
-   trimmed down to a short, natural pause rather than removed outright.
+3. **Align** (`js/align.js`, script mode only) — matches the script's
+   words against the transcript using an LCS-based algorithm, snapping to
+   the *last* occurrence of any repeated word so a corrected retake wins
+   over the flubbed first attempt. See the comments at the top of the
+   file for the exact logic and its known limits.
+4. **Plan cuts** — turns word-level timing into a list of time ranges to
+   keep. In script mode, `js/planCuts.js` turns the alignment into cuts:
+   junk between two correct anchors gets cut entirely, and overlong
+   pauses (default: anything over 1.2s) get trimmed down to a short,
+   natural pause rather than removed outright. In no-script mode,
+   `js/autoDetect.js` does the equivalent job from self-similarity alone
+   — see "Two modes" above for what that means in practice.
 5. **Export** (`js/export.js`) — uses [ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm)
    to trim and concatenate the kept segments into a final video, in-browser.
 
@@ -41,7 +62,7 @@ require a real HTTP origin.)
 
 ### Running the logic tests
 
-The alignment and cut-planning algorithms (the two riskiest parts) have a
+The alignment and cut-planning algorithms (the riskiest parts) have a
 plain Node test suite with no browser dependency:
 
 ```bash
@@ -49,6 +70,7 @@ npm test
 # or directly:
 node test/align.test.js
 node test/planCuts.test.js
+node test/autoDetect.test.js
 ```
 
 ## Putting it on GitHub (so you can use it from any computer)

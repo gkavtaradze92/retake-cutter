@@ -4,7 +4,7 @@
   "description": "Browser-only tool that cuts retakes and long pauses out of shadowing recordings by matching what you said against the script.",
   "type": "module",
   "scripts": {
-    "test": "node test/align.test.js && node test/planCuts.test.js"
+    "test": "node test/align.test.js && node test/planCuts.test.js && node test/autoDetect.test.js"
   },
   "license": "MIT"
 }

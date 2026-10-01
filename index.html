@@ -26,10 +26,10 @@
     <header>
       <h1>Retake Cutter</h1>
       <p>
-        Upload a shadowing take and paste the script you read from.
-        It transcribes what you actually said, finds the retakes and
-        long pauses, and cuts them out automatically — nothing leaves
-        your browser.
+        Upload a shadowing take. Paste the script you read from for the
+        most accurate cut — or leave it blank and it will auto-detect
+        retakes by listening for repeated phrases (less precise, but
+        works without a script). Nothing leaves your browser.
       </p>
     </header>
 
@@ -42,14 +42,14 @@
       </div>
 
       <div>
-        <textarea id="script-input" placeholder="Paste the script you were reading from, word for word…"></textarea>
+        <textarea id="script-input" placeholder="Optional: paste the script you were reading from, word for word. Leave blank to auto-detect retakes without one."></textarea>
       </div>
     </section>
 
     <div class="control-row">
       <button id="process-btn" disabled>Process</button>
       <div class="status-area">
-        <div id="status-line">Add a video and a script to begin.</div>
+        <div id="status-line">Add a video to begin. A script is optional but gives a more accurate cut.</div>
         <div id="progress-bar"></div>
       </div>
     </div>
