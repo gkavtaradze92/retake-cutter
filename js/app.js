@@ -1,5 +1,6 @@
 import { tokenizeScript, alignLCS } from './align.js';
 import { planKeepSegments, totalCutSeconds } from './planCuts.js';
+import { planKeepSegmentsAuto } from './autoDetect.js';
 import { extractPCM16k, readVideoDuration } from './audio.js';
 import { transcribeWords } from './transcribe.js';
 import { exportEditedVideo } from './export.js';
@@ -61,7 +62,8 @@ downloadBtn.addEventListener('click', (e) => {
 });
 
 function updateProcessAvailability() {
-  processBtn.disabled = !selectedFile || scriptInput.value.trim().length === 0;
+  // Script is optional — without one, auto-detect mode kicks in (see runPipeline).
+  processBtn.disabled = !selectedFile;
 }
 
 // ---- Processing pipeline ----
@@ -113,26 +115,46 @@ async function runPipeline() {
       );
     }
 
-    setStatus('Matching what you said against the script…', null);
-    const scriptWords = tokenizeScript(scriptInput.value);
-    const anchors = alignLCS(scriptWords, words);
+    const hasScript = scriptInput.value.trim().length > 0;
+    let keepSegments;
+    let modeLabel;
 
-    const matchedCount = anchors.filter((a) => a !== -1).length;
-    if (matchedCount < scriptWords.length * 0.4) {
-      // Loud, specific warning rather than silently producing a bad cut —
-      // low match rate usually means an accent/audio-quality mismatch
-      // with the transcription, or the wrong script was pasted in.
+    if (hasScript) {
+      setStatus('Matching what you said against the script…', null);
+      const scriptWords = tokenizeScript(scriptInput.value);
+      const anchors = alignLCS(scriptWords, words);
+
+      const matchedCount = anchors.filter((a) => a !== -1).length;
+      if (matchedCount < scriptWords.length * 0.4) {
+        // Loud, specific warning rather than silently producing a bad cut —
+        // low match rate usually means an accent/audio-quality mismatch
+        // with the transcription, or the wrong script was pasted in.
+        setStatus(
+          `Warning: only matched ${matchedCount} of ${scriptWords.length} script words — the edit below may be unreliable. Check the script matches this recording.`,
+          null
+        );
+        await sleep(2500);
+      }
+
+      keepSegments = planKeepSegments(scriptWords, words, anchors, durationSec);
+      modeLabel = 'script-matched';
+    } else {
+      // No script pasted — fall back to self-similarity auto-detection.
+      // Less reliable: it can only catch retakes that closely repeat the
+      // flubbed wording, and can wrongly cut genuinely repeated phrases.
+      // See js/autoDetect.js for the full explanation.
       setStatus(
-        `Warning: only matched ${matchedCount} of ${scriptWords.length} script words — the edit below may be unreliable. Check the script matches this recording.`,
+        'No script provided — using automatic retake detection (less precise than script-matching; review the result before trusting it).',
         null
       );
-      await sleep(2500);
+      await sleep(1500);
+      keepSegments = planKeepSegmentsAuto(words, durationSec);
+      modeLabel = 'auto-detected (no script)';
     }
 
-    const keepSegments = planKeepSegments(scriptWords, words, anchors, durationSec);
     const cutSeconds = totalCutSeconds(keepSegments, durationSec);
 
-    setStatus(`Exporting edited video — cutting ${cutSeconds.toFixed(1)}s across ${keepSegments.length - 1 + (matchedCount < scriptWords.length ? 1 : 0)} place(s)…`, null);
+    setStatus(`Exporting edited video (${modeLabel}) — cutting ${cutSeconds.toFixed(1)}s…`, null);
 
     const editedBlob = await exportEditedVideo(selectedFile, keepSegments, (info) => {
       if (typeof info?.ratio === 'number') {
@@ -149,7 +171,7 @@ async function runPipeline() {
     downloadBtn.download = withSuffix(selectedFile.name, '-edited');
     downloadBtn.classList.remove('disabled');
 
-    statsLine.textContent = `Original: ${durationSec.toFixed(1)}s → Edited: ${(durationSec - cutSeconds).toFixed(1)}s (removed ${cutSeconds.toFixed(1)}s, ${keepSegments.length} kept segment${keepSegments.length === 1 ? '' : 's'})`;
+    statsLine.textContent = `[${modeLabel}] Original: ${durationSec.toFixed(1)}s → Edited: ${(durationSec - cutSeconds).toFixed(1)}s (removed ${cutSeconds.toFixed(1)}s, ${keepSegments.length} kept segment${keepSegments.length === 1 ? '' : 's'})`;
 
     setStatus('Done.', null);
   } catch (err) {
